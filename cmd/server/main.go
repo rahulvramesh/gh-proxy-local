@@ -15,6 +15,7 @@
 //	COPILOT_DEBUG=1     Enable debug logging
 //	COPILOT_PORT=8080   Server port (default: 8080)
 //	COPILOT_HOST=0.0.0.0  Server host (default: 0.0.0.0)
+//	COPILOT_API_KEY=key   API key for bearer auth (optional)
 package main
 
 import (
@@ -25,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -105,7 +107,7 @@ func main() {
 	mux.HandleFunc("GET /v1/messages/batches/{batch_id}", anthropicHandler.Batches)
 
 	// Add CORS middleware
-	handler := corsMiddleware(mux)
+	handler := apiKeyMiddleware(cfg.APIKey, corsMiddleware(mux))
 
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 
@@ -122,6 +124,11 @@ func main() {
 	fmt.Println("🚀 Starting GitHub Copilot Proxy Server")
 	fmt.Printf("   Host: %s\n", cfg.Host)
 	fmt.Printf("   Port: %d\n", cfg.Port)
+	if cfg.APIKey != "" {
+		fmt.Println("   Auth: API key required")
+	} else {
+		fmt.Println("   Auth: None (open access)")
+	}
 	fmt.Println()
 	fmt.Println("📡 Endpoints:")
 	fmt.Printf("   OpenAI Chat:      http://%s/v1/chat/completions\n", addr)
@@ -168,6 +175,24 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// apiKeyMiddleware validates the API key if configured.
+func apiKeyMiddleware(apiKey string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if apiKey == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != apiKey {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 

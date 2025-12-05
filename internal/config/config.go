@@ -38,6 +38,7 @@ type Config struct {
 	Port            int
 	Debug           bool
 	CredentialsFile string
+	APIKey          string
 }
 
 // NewConfig creates a new configuration from environment variables.
@@ -62,10 +63,13 @@ func NewConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
 	credFile := homeDir + "/.copilot_credentials.json"
 
+	apiKey := os.Getenv("COPILOT_API_KEY")
+
 	return &Config{
 		Host:            host,
 		Port:            port,
 		Debug:           debug,
 		CredentialsFile: credFile,
+		APIKey:          apiKey,
 	}
 }
