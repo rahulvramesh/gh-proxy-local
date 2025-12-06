@@ -2,6 +2,19 @@
 
 An OpenAI and Anthropic API-compatible proxy server that routes requests through GitHub Copilot's API. Use Copilot with any tool that supports OpenAI or Anthropic APIs.
 
+## ⚠️ Disclaimer
+
+This project is an **unofficial, community-maintained** tool that provides local access to GitHub Copilot through a proxy interface. It is **not affiliated with, endorsed by, or supported by GitHub or Copilot**. 
+
+**Important:**
+- This tool uses your personal GitHub Copilot subscription
+- By using this project, you accept full responsibility for compliance with GitHub's Terms of Service and Copilot's usage policies
+- Misuse of this proxy may violate GitHub Copilot's terms and could result in account suspension
+- This is provided "as-is" without warranty - use at your own risk
+- The authors are not liable for any consequences of using this tool
+
+Please review [GitHub's Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) and [GitHub Copilot Terms](https://github.com/features/copilot/terms) before using this tool.
+
 ## Features
 
 - **OpenAI API Compatible** - `/v1/chat/completions`, `/v1/responses`
