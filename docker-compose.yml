@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  gh-proxy-local:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gh-proxy-local
+    ports:
+      - "8080:8080"
+    environment:
+      COPILOT_HOST: 0.0.0.0
+      COPILOT_PORT: 8080
+      COPILOT_DEBUG: 0
+    volumes:
+      - ~/.copilot_credentials.json:/home/copilot/.copilot_credentials.json:ro
+    restart: unless-stopped
+    networks:
+      - gh-proxy-network
+
+networks:
+  gh-proxy-network:
+    driver: bridge

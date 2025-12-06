@@ -37,3 +37,4 @@ vendor/
 # Build output
 bin/
 dist/
+todo.md

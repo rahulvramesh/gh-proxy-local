@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Binaries
+bin/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+HOSTING.md
+todo.md
+agents.md
+
+# CI/CD
+.github/
+
+# Go
+vendor/
+.mod
+.sum
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
