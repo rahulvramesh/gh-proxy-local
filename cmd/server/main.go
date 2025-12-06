@@ -190,12 +190,20 @@ func apiKeyMiddleware(apiKey string, next http.Handler) http.Handler {
 			return
 		}
 
+		// Check Authorization header (Bearer token)
 		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") || strings.TrimPrefix(auth, "Bearer ") != apiKey {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		if strings.HasPrefix(auth, "Bearer ") && strings.TrimPrefix(auth, "Bearer ") == apiKey {
+			next.ServeHTTP(w, r)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		// Check X-API-Key header
+		xApiKey := r.Header.Get("X-API-Key")
+		if xApiKey == apiKey {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	})
 }
