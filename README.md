@@ -133,8 +133,98 @@ curl http://localhost:8080/v1/chat/completions \
 
 ### List Available Models
 
+Retrieve all available models from the Copilot API:
+
 ```bash
 curl http://localhost:8080/v1/models
+```
+
+**Response Format:**
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "gpt-4o",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "openai",
+      "name": "GPT-4o",
+      "version": "gpt-4o-2024-11-20",
+      "limits": {
+        "max_context_window_tokens": 128000,
+        "max_output_tokens": 4096,
+        "max_prompt_tokens": 64000
+      },
+      "capabilities": {
+        "vision": true,
+        "tool_calls": true,
+        "parallel_tool_calls": true,
+        "streaming": true
+      }
+    },
+    {
+      "id": "claude-sonnet-4.5",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "anthropic",
+      "name": "Claude Sonnet 4.5",
+      "version": "claude-sonnet-4.5",
+      "limits": {
+        "max_context_window_tokens": 144000,
+        "max_output_tokens": 16000,
+        "max_prompt_tokens": 128000
+      },
+      "capabilities": {
+        "vision": true,
+        "tool_calls": true,
+        "parallel_tool_calls": true,
+        "streaming": true
+      }
+    },
+    {
+      "id": "gpt-5",
+      "object": "model",
+      "created": 1700000000,
+      "owned_by": "openai",
+      "name": "GPT-5",
+      "version": "gpt-5",
+      "limits": {
+        "max_context_window_tokens": 400000,
+        "max_output_tokens": 128000,
+        "max_prompt_tokens": 128000
+      },
+      "capabilities": {
+        "vision": true,
+        "tool_calls": true,
+        "parallel_tool_calls": true,
+        "streaming": true,
+        "structured_outputs": true
+      }
+    }
+  ]
+}
+```
+
+**Response Fields:**
+- `id`: Model identifier (use this in requests)
+- `object`: Type of object (always "model")
+- `created`: Unix timestamp of model creation
+- `owned_by`: Model provider (openai, anthropic, google, xai, etc.)
+- `name`: Human-readable model name
+- `version`: Specific version identifier
+- `limits`: Token limits for the model
+  - `max_context_window_tokens`: Maximum context size
+  - `max_output_tokens`: Maximum response length
+  - `max_prompt_tokens`: Maximum prompt length
+- `capabilities`: Feature support (vision, tool_calls, streaming, etc.)
+- `preview` (optional): Indicates if model is in preview status
+
+**Example: Get only available model IDs**
+
+```bash
+curl -s http://localhost:8080/v1/models | jq '.data[].id'
 ```
 
 ## Model Aliases
