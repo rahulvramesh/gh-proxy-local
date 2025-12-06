@@ -324,6 +324,32 @@ COPILOT_DEBUG=1 ./gh-proxy-local
 ./gh-proxy-local --port 3000
 ```
 
+## Tool-Specific Documentation
+
+This proxy is compatible with various AI tools. See the detailed setup guides for your specific tool:
+
+### IDE & Development Tools
+
+- **[Factory AI Droid](./docs/factoryai-droid.md)** - Complete setup guide for Factory AI's Droid agent
+  - Custom model configuration
+  - Master key authentication
+  - Multiple model setup
+  - Troubleshooting guide
+
+- **[Raycast AI](./docs/raycast-ai.md)** - Integration guide for Raycast AI
+  - Provider configuration
+  - Model abilities setup
+  - Multiple model examples
+  - Keyboard shortcuts
+
+### Deployment & Hosting
+
+- **[HOSTING.md](./docs/HOSTING.md)** - Comprehensive hosting and deployment guide
+  - Docker setup and configuration
+  - Docker Compose for local development
+  - Authentication and credentials management
+  - Troubleshooting and monitoring
+
 ## License
 
 MIT
