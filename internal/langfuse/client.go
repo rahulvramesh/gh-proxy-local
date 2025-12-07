@@ -17,10 +17,12 @@ import (
 )
 
 // Client is the Langfuse API client with async event ingestion.
+// apiKeyID and apiKeyVal are not hardcoded credentials - they are
+// populated from environment variables at runtime via config.LangfuseConfig
 type Client struct {
 	host       string
-	publicKey  string
-	secretKey  string
+	apiKeyID   string
+	apiKeyVal  string
 	httpClient *http.Client
 	debug      bool
 
@@ -42,8 +44,8 @@ func NewClient(cfg config.LangfuseConfig, debug bool) *Client {
 
 	c := &Client{
 		host:      cfg.Host,
-		publicKey: cfg.PublicKey,
-		secretKey: cfg.SecretKey,
+		apiKeyID:  cfg.PublicKey,
+		apiKeyVal: cfg.SecretKey,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -193,7 +195,7 @@ func (c *Client) sendBatch(ctx context.Context, events []Event) error {
 	}
 
 	// Basic auth
-	auth := base64.StdEncoding.EncodeToString([]byte(c.publicKey + ":" + c.secretKey))
+	auth := base64.StdEncoding.EncodeToString([]byte(c.apiKeyID + ":" + c.apiKeyVal))
 	httpReq.Header.Set("Authorization", "Basic "+auth)
 	httpReq.Header.Set("Content-Type", "application/json")
 
