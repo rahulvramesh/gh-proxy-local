@@ -5,25 +5,32 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rahulvramesh/gh-proxy-local/internal/converter"
 	"github.com/rahulvramesh/gh-proxy-local/internal/copilot"
+	"github.com/rahulvramesh/gh-proxy-local/internal/langfuse"
 )
 
 // AnthropicHandler handles Anthropic messages API endpoints.
 type AnthropicHandler struct {
-	client *copilot.Client
-	debug  bool
+	client   *copilot.Client
+	langfuse *langfuse.Client
+	debug    bool
 }
 
 // NewAnthropicHandler creates a new Anthropic handler.
-func NewAnthropicHandler(client *copilot.Client, debug bool) *AnthropicHandler {
-	return &AnthropicHandler{client: client, debug: debug}
+func NewAnthropicHandler(client *copilot.Client, langfuseClient *langfuse.Client, debug bool) *AnthropicHandler {
+	return &AnthropicHandler{client: client, langfuse: langfuseClient, debug: debug}
 }
 
 // Messages handles POST /v1/messages and /messages
 func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	traceID := langfuse.GenerateTraceID()
+	genID := langfuse.GenerateSpanID()
+
 	var req struct {
 		Model         string                   `json:"model"`
 		Messages      []map[string]interface{} `json:"messages"`
@@ -65,7 +72,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Stream {
-		h.streamMessages(w, r, chatReq, req.Model)
+		h.streamMessages(w, r, chatReq, req.Model, traceID, genID, startTime, req.Messages)
 		return
 	}
 
@@ -75,6 +82,7 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "API error") {
 			statusCode = http.StatusBadGateway
 		}
+		h.trackGeneration(traceID, genID, req.Model, req.Messages, nil, nil, startTime, "ERROR", err.Error(), r)
 		http.Error(w, err.Error(), statusCode)
 		return
 	}
@@ -86,12 +94,49 @@ func (h *AnthropicHandler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	anthropicResp := converter.ConvertOpenAIResponseToAnthropic(respMap, req.Model)
 
+	// Track to Langfuse
+	usage := &langfuse.UsageData{
+		PromptTokens:     resp.Usage.PromptTokens,
+		CompletionTokens: resp.Usage.CompletionTokens,
+		TotalTokens:      resp.Usage.TotalTokens,
+	}
+	h.trackGeneration(traceID, genID, req.Model, req.Messages, anthropicResp, usage, startTime, "", "", r)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(anthropicResp)
 }
 
+// trackGeneration sends generation data to Langfuse.
+func (h *AnthropicHandler) trackGeneration(traceID, genID, model string, input, output interface{}, usage *langfuse.UsageData, startTime time.Time, level, statusMessage string, r *http.Request) {
+	if h.langfuse == nil || !h.langfuse.IsEnabled() {
+		return
+	}
+
+	metadata := map[string]interface{}{
+		"endpoint": "messages",
+		"api":      "anthropic",
+	}
+
+	gen := &langfuse.GenerationBody{
+		ID:            genID,
+		TraceID:       traceID,
+		Name:          "anthropic-message",
+		Model:         model,
+		Input:         input,
+		Output:        output,
+		Usage:         usage,
+		Metadata:      metadata,
+		StartTime:     startTime,
+		EndTime:       time.Now(),
+		Level:         level,
+		StatusMessage: statusMessage,
+	}
+
+	h.langfuse.TrackGeneration(gen)
+}
+
 // streamMessages handles streaming for Anthropic messages.
-func (h *AnthropicHandler) streamMessages(w http.ResponseWriter, r *http.Request, req *copilot.ChatRequest, model string) {
+func (h *AnthropicHandler) streamMessages(w http.ResponseWriter, r *http.Request, req *copilot.ChatRequest, model string, traceID, genID string, startTime time.Time, inputMessages []map[string]interface{}) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
@@ -281,6 +326,20 @@ func (h *AnthropicHandler) streamMessages(w http.ResponseWriter, r *http.Request
 	h.sendAnthropicEvent(w, flusher, "message_stop", map[string]interface{}{
 		"type": "message_stop",
 	})
+
+	// Track to Langfuse
+	level := ""
+	statusMsg := ""
+	if err != nil {
+		level = "ERROR"
+		statusMsg = err.Error()
+	}
+	usage := &langfuse.UsageData{
+		PromptTokens:     usageData["input_tokens"],
+		CompletionTokens: usageData["output_tokens"],
+		TotalTokens:      usageData["input_tokens"] + usageData["output_tokens"],
+	}
+	h.trackGeneration(traceID, genID, model, inputMessages, map[string]string{"stop_reason": stopReason}, usage, startTime, level, statusMsg, r)
 }
 
 // sendAnthropicEvent sends an Anthropic SSE event.

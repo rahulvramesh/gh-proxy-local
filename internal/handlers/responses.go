@@ -10,21 +10,27 @@ import (
 	"github.com/google/uuid"
 	"github.com/rahulvramesh/gh-proxy-local/internal/converter"
 	"github.com/rahulvramesh/gh-proxy-local/internal/copilot"
+	"github.com/rahulvramesh/gh-proxy-local/internal/langfuse"
 )
 
 // ResponsesHandler handles OpenAI Responses API endpoints.
 type ResponsesHandler struct {
-	client *copilot.Client
-	debug  bool
+	client   *copilot.Client
+	langfuse *langfuse.Client
+	debug    bool
 }
 
 // NewResponsesHandler creates a new responses handler.
-func NewResponsesHandler(client *copilot.Client, debug bool) *ResponsesHandler {
-	return &ResponsesHandler{client: client, debug: debug}
+func NewResponsesHandler(client *copilot.Client, langfuseClient *langfuse.Client, debug bool) *ResponsesHandler {
+	return &ResponsesHandler{client: client, langfuse: langfuseClient, debug: debug}
 }
 
 // Responses handles POST /v1/responses and /responses
 func (h *ResponsesHandler) Responses(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	traceID := langfuse.GenerateTraceID()
+	genID := langfuse.GenerateSpanID()
+
 	var req struct {
 		Model           string      `json:"model"`
 		Input           interface{} `json:"input"`
@@ -64,7 +70,7 @@ func (h *ResponsesHandler) Responses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Stream {
-		h.streamResponses(w, r, chatReq, req.Model)
+		h.streamResponses(w, r, chatReq, req.Model, traceID, genID, startTime, req.Input)
 		return
 	}
 
@@ -74,6 +80,7 @@ func (h *ResponsesHandler) Responses(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "API error") {
 			statusCode = http.StatusBadGateway
 		}
+		h.trackGeneration(traceID, genID, req.Model, req.Input, nil, nil, startTime, "ERROR", err.Error(), r)
 		http.Error(w, err.Error(), statusCode)
 		return
 	}
@@ -96,8 +103,45 @@ func (h *ResponsesHandler) Responses(w http.ResponseWriter, r *http.Request) {
 		"usage":      usage,
 	}
 
+	// Track to Langfuse
+	lfUsage := &langfuse.UsageData{
+		PromptTokens:     resp.Usage.PromptTokens,
+		CompletionTokens: resp.Usage.CompletionTokens,
+		TotalTokens:      resp.Usage.TotalTokens,
+	}
+	h.trackGeneration(traceID, genID, req.Model, req.Input, output, lfUsage, startTime, "", "", r)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// trackGeneration sends generation data to Langfuse.
+func (h *ResponsesHandler) trackGeneration(traceID, genID, model string, input, output interface{}, usage *langfuse.UsageData, startTime time.Time, level, statusMessage string, r *http.Request) {
+	if h.langfuse == nil || !h.langfuse.IsEnabled() {
+		return
+	}
+
+	metadata := map[string]interface{}{
+		"endpoint": "responses",
+		"api":      "openai-responses",
+	}
+
+	gen := &langfuse.GenerationBody{
+		ID:            genID,
+		TraceID:       traceID,
+		Name:          "openai-response",
+		Model:         model,
+		Input:         input,
+		Output:        output,
+		Usage:         usage,
+		Metadata:      metadata,
+		StartTime:     startTime,
+		EndTime:       time.Now(),
+		Level:         level,
+		StatusMessage: statusMessage,
+	}
+
+	h.langfuse.TrackGeneration(gen)
 }
 
 // filterFunctionTools filters only function type tools.
@@ -245,7 +289,7 @@ func (h *ResponsesHandler) extractUsage(resp interface{}) map[string]interface{}
 }
 
 // streamResponses handles streaming for Responses API.
-func (h *ResponsesHandler) streamResponses(w http.ResponseWriter, r *http.Request, req *copilot.ChatRequest, model string) {
+func (h *ResponsesHandler) streamResponses(w http.ResponseWriter, r *http.Request, req *copilot.ChatRequest, model string, traceID, genID string, startTime time.Time, input interface{}) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
@@ -431,6 +475,20 @@ func (h *ResponsesHandler) streamResponses(w http.ResponseWriter, r *http.Reques
 			},
 		},
 	})
+
+	// Track to Langfuse
+	level := ""
+	statusMsg := ""
+	if err != nil {
+		level = "ERROR"
+		statusMsg = err.Error()
+	}
+	lfUsage := &langfuse.UsageData{
+		PromptTokens:     usageData["input_tokens"],
+		CompletionTokens: usageData["output_tokens"],
+		TotalTokens:      usageData["total_tokens"],
+	}
+	h.trackGeneration(traceID, genID, model, input, text, lfUsage, startTime, level, statusMsg, r)
 }
 
 // sendEvent sends an SSE event.

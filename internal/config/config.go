@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 const (
@@ -39,6 +40,17 @@ type Config struct {
 	Debug           bool
 	CredentialsFile string
 	APIKey          string
+	Langfuse        LangfuseConfig
+}
+
+// LangfuseConfig holds Langfuse observability configuration.
+type LangfuseConfig struct {
+	Enabled       bool
+	Host          string
+	PublicKey     string
+	SecretKey     string
+	BatchSize     int
+	FlushInterval time.Duration
 }
 
 // NewConfig creates a new configuration from environment variables.
@@ -65,11 +77,44 @@ func NewConfig() *Config {
 
 	apiKey := os.Getenv("COPILOT_API_KEY")
 
+	// Langfuse configuration
+	langfuseEnabled := false
+	if lf := os.Getenv("LANGFUSE_ENABLED"); lf == "1" || lf == "true" || lf == "yes" {
+		langfuseEnabled = true
+	}
+
+	langfuseHost := "https://cloud.langfuse.com"
+	if lh := os.Getenv("LANGFUSE_HOST"); lh != "" {
+		langfuseHost = lh
+	}
+
+	langfuseBatchSize := 10
+	if bs := os.Getenv("LANGFUSE_BATCH_SIZE"); bs != "" {
+		if parsed, err := strconv.Atoi(bs); err == nil && parsed > 0 {
+			langfuseBatchSize = parsed
+		}
+	}
+
+	langfuseFlushInterval := 5 * time.Second
+	if fi := os.Getenv("LANGFUSE_FLUSH_INTERVAL"); fi != "" {
+		if parsed, err := time.ParseDuration(fi); err == nil && parsed > 0 {
+			langfuseFlushInterval = parsed
+		}
+	}
+
 	return &Config{
 		Host:            host,
 		Port:            port,
 		Debug:           debug,
 		CredentialsFile: credFile,
 		APIKey:          apiKey,
+		Langfuse: LangfuseConfig{
+			Enabled:       langfuseEnabled,
+			Host:          langfuseHost,
+			PublicKey:     os.Getenv("LANGFUSE_PUBLIC_KEY"),
+			SecretKey:     os.Getenv("LANGFUSE_SECRET_KEY"),
+			BatchSize:     langfuseBatchSize,
+			FlushInterval: langfuseFlushInterval,
+		},
 	}
 }

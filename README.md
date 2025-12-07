@@ -25,6 +25,7 @@ Please review [GitHub's Terms of Service](https://docs.github.com/en/site-policy
 - **Tool/Function Calling** - Automatic conversion between API formats
 - **CORS Enabled** - Works with web-based clients
 - **Models Discovery** - List available models from Copilot API
+- **LLM Observability** - Langfuse integration for tracing, cost tracking, and analytics
 
 ## Quick Start
 
@@ -91,19 +92,76 @@ Credentials are cached in `~/.copilot_credentials.json` for subsequent runs.
 
 ## Configuration
 
-### Environment Variables
+### Server Configuration
+
+#### Environment Variables
 
 ```bash
 COPILOT_HOST=0.0.0.0    # Server host (default: 0.0.0.0)
 COPILOT_PORT=8080       # Server port (default: 8080)
 COPILOT_DEBUG=1         # Enable debug logging (default: false)
+COPILOT_API_KEY=key     # Optional API key for bearer auth
 ```
 
-### Command Line Flags
+#### Command Line Flags
 
 ```bash
 ./gh-proxy-local --host 127.0.0.1 --port 3000
 ./gh-proxy-local -H 127.0.0.1 -p 3000  # Shorthand
+```
+
+### Langfuse Observability
+
+Enable LLM observability and monitoring with [Langfuse](https://langfuse.com/) to track all API requests, responses, token usage, and costs.
+
+#### Setup
+
+1. Create a free account at [Langfuse Cloud](https://cloud.langfuse.com) or [self-host](https://langfuse.com/docs/self-host)
+2. Create a project and get your API credentials
+3. Configure the proxy with environment variables:
+
+```bash
+LANGFUSE_ENABLED=true
+LANGFUSE_HOST=https://cloud.langfuse.com    # Or your self-hosted URL
+LANGFUSE_PUBLIC_KEY=pk-xxxxxxxxxxxxx
+LANGFUSE_SECRET_KEY=sk-xxxxxxxxxxxxx
+
+# Optional: Batch configuration
+LANGFUSE_BATCH_SIZE=10                      # Events per batch (default: 10)
+LANGFUSE_FLUSH_INTERVAL=5s                  # Max wait before flushing (default: 5s)
+```
+
+#### What Gets Tracked
+
+- **Request/Response Data**: Full prompt and completion text
+- **Token Usage**: Prompt tokens, completion tokens, total tokens, cached tokens
+- **Latency**: Request duration and timestamps
+- **Models**: Which model was used for each request
+- **API Endpoints**: OpenAI chat, Anthropic messages, Responses API
+- **Errors**: Failed requests with error details
+
+#### Performance
+
+- **Non-blocking**: Events are queued asynchronously, doesn't block requests
+- **Batched**: Events are sent in batches (configurable size/interval)
+- **Graceful degradation**: If queue is full, events are dropped with a warning
+- **Graceful shutdown**: Pending events are flushed on server shutdown
+
+#### Example: Running with Langfuse
+
+```bash
+LANGFUSE_ENABLED=true \
+LANGFUSE_HOST=https://cloud.langfuse.com \
+LANGFUSE_PUBLIC_KEY=pk-xxxxxxxxxxxxx \
+LANGFUSE_SECRET_KEY=sk-xxxxxxxxxxxxx \
+./gh-proxy-local
+
+# In dashboard, you'll see:
+# - Traces for each API request
+# - Token usage per model
+# - Cost analysis
+# - Latency metrics
+# - Error tracking
 ```
 
 ## Usage Examples

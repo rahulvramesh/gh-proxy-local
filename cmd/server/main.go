@@ -34,6 +34,7 @@ import (
 	"github.com/rahulvramesh/gh-proxy-local/internal/config"
 	"github.com/rahulvramesh/gh-proxy-local/internal/copilot"
 	"github.com/rahulvramesh/gh-proxy-local/internal/handlers"
+	"github.com/rahulvramesh/gh-proxy-local/internal/langfuse"
 )
 
 func main() {
@@ -62,11 +63,14 @@ func main() {
 	// Initialize Copilot client
 	client := copilot.NewClient(authManager, cfg.Debug)
 
+	// Initialize Langfuse client
+	langfuseClient := langfuse.NewClient(cfg.Langfuse, cfg.Debug)
+
 	// Initialize handlers
 	modelsHandler := handlers.NewModelsHandler(client)
-	chatHandler := handlers.NewChatHandler(client, cfg.Debug)
-	responsesHandler := handlers.NewResponsesHandler(client, cfg.Debug)
-	anthropicHandler := handlers.NewAnthropicHandler(client, cfg.Debug)
+	chatHandler := handlers.NewChatHandler(client, langfuseClient, cfg.Debug)
+	responsesHandler := handlers.NewResponsesHandler(client, langfuseClient, cfg.Debug)
+	anthropicHandler := handlers.NewAnthropicHandler(client, langfuseClient, cfg.Debug)
 	healthHandler := handlers.NewHealthHandler(authManager, client)
 
 	// Set up router
@@ -129,6 +133,11 @@ func main() {
 	} else {
 		fmt.Println("   Auth: None (open access)")
 	}
+	if langfuseClient.IsEnabled() {
+		fmt.Printf("   Langfuse: Enabled (%s)\n", cfg.Langfuse.Host)
+	} else {
+		fmt.Println("   Langfuse: Disabled")
+	}
 	fmt.Println()
 	fmt.Println("📡 Endpoints:")
 	fmt.Printf("   OpenAI Chat:      http://%s/v1/chat/completions\n", addr)
@@ -146,6 +155,9 @@ func main() {
 	go func() {
 		<-quit
 		fmt.Println("\nShutting down server...")
+
+		// Shutdown Langfuse client first
+		langfuseClient.Shutdown()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
